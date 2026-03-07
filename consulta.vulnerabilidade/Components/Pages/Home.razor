@@ -1,0 +1,231 @@
+﻿@page "/"
+@using consulta.vulnerabilidade.Domain.Scans
+@using consulta.vulnerabilidade.Application.Scans
+@using consulta.vulnerabilidade.Application.Abstractions
+@inject ScanDispatcher Dispatcher
+@inject IScanReportRepository Repo
+
+<div class="container py-5" style="max-width: 860px;">
+    <h1 class="mb-2">LaunchSafe (MVP)</h1>
+    <p class="text-muted mb-4">
+        Cole uma URL e receba um checklist de hardening + explicação (leigo + técnico).
+    </p>
+
+    @if (_showPaywall)
+    {
+        <div class="card p-3 mb-4">
+            <h5 class="mb-2">Acesso necessário</h5>
+            <p class="text-muted mb-3">
+                MVP de paywall/login: aqui você decide se exige conta ou pagamento para rodar o scan.
+            </p>
+
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <input class="form-control" placeholder="Email" @bind="_email" />
+                </div>
+                <div class="col-md-6">
+                    <input class="form-control" placeholder="Senha" type="password" @bind="_password" />
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-success" @onclick="FakeLogin">Entrar</button>
+                <button class="btn btn-outline-dark" @onclick="FakePay">Pagar análise (stub)</button>
+                <button class="btn btn-outline-secondary" @onclick="SkipPaywall">Agora não</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="input-group mb-3">
+            <input class="form-control"
+                   placeholder='Digite seu site "https://chatgpt.com/"'
+                   @bind="_url" />
+            <button class="btn btn-primary" @onclick="OnAnalyze">Analisar vulnerabilidades</button>
+        </div>
+
+        <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" id="useAi" @bind="_useAi" />
+            <label class="form-check-label" for="useAi">Usar IA para enriquecer achados (opcional)</label>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_status))
+        {
+            <div class="alert alert-secondary">
+                <strong>Status:</strong> @_status
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">
+                <strong>Erro:</strong> @_error
+            </div>
+        }
+
+        @if (_isLoading)
+        {
+            <div class="alert alert-info">Analisando... (MVP: aguarde finalizar)</div>
+        }
+
+        @if (_lastReport is not null)
+        {
+            <div class="card p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">Resultado</h5>
+                        <small class="text-muted">@_lastReport!.Url • @_lastReport!.CreatedAt.ToLocalTime()</small>
+                    </div>
+                    <span class="badge bg-primary">Score: @_lastReport.Score/100</span>
+                </div>
+
+                <hr />
+
+                @if (_lastReport.Findings.Count == 0)
+                {
+                    <div class="alert alert-success mb-0">Nenhum achado relevante (pelo scanner MVP).</div>
+                }
+                else
+                {
+                    @foreach (var f in _lastReport.Findings.Where(x => x.Title != "OK"))
+                    {
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge @SeverityBadge(f.Severity)">@f.Severity</span>
+                                <strong>@f.Title</strong>
+                            </div>
+                            <div class="text-muted">@f.Explanation</div>
+
+                            @if (!string.IsNullOrWhiteSpace(f.TechnicalDetails))
+                            {
+                                <details class="mt-1">
+                                    <summary>Detalhes técnicos</summary>
+                                    <pre class="mb-0">@f.TechnicalDetails</pre>
+                                </details>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        }
+
+        @if (_recent?.Count > 0)
+        {
+            <div class="mt-4">
+                <h5>Últimas análises</h5>
+                <ul class="list-group">
+                    @foreach (var r in _recent)
+                    {
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>@r.Url</span>
+                            <span class="text-muted">Score @r.Score</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    string _url = "";
+    bool _useAi = false;
+
+    bool _showPaywall = false;
+    string _email = "";
+    string _password = "";
+
+    bool _isLoading = false;
+
+    string? _status;
+    string? _error;
+
+    ScanReport? _lastReport;
+    IReadOnlyList<ScanReport>? _recent;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            _status = "Página renderizada. Carregando histórico inicial...";
+            _recent = await Repo.GetRecentAsync(10);
+            _status = $"Histórico inicial carregado. Total: {_recent?.Count ?? 0}";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Erro ao carregar histórico inicial: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    async Task OnAnalyze()
+    {
+        _error = null;
+        _status = "Clique recebido no botão Analisar.";
+
+        if (_showPaywall)
+        {
+            _status = "Fluxo interrompido: paywall ativo.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_url))
+        {
+            _status = "Fluxo interrompido: URL vazia.";
+            return;
+        }
+
+        _isLoading = true;
+        _lastReport = null;
+        _status = $"Iniciando análise para URL: {_url}";
+        StateHasChanged();
+
+        try
+        {
+            _status = "Chamando Dispatcher.RequestScanAsync...";
+            var scanId = await Dispatcher.RequestScanAsync(_url, _useAi);
+
+            _status = $"Scan solicitado com sucesso. Id: {scanId}";
+            StateHasChanged();
+
+            _status = "Buscando último relatório...";
+            _lastReport = await Repo.GetLastAsync(_url);
+
+            if (_lastReport is null)
+            {
+                _status = "Scan executado, mas Repo.GetLastAsync não retornou relatório.";
+            }
+            else
+            {
+                _status = $"Relatório encontrado para {_lastReport.Url} com score {_lastReport.Score}.";
+            }
+
+            _recent = await Repo.GetRecentAsync(10);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+            _status = "A análise falhou com exceção.";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    void FakeLogin() => _showPaywall = false;
+    void FakePay() => _showPaywall = false;
+    void SkipPaywall() => _showPaywall = false;
+
+    static string SeverityBadge(string s) => s switch
+    {
+        "HIGH" => "bg-danger",
+        "MEDIUM" => "bg-warning text-dark",
+        "LOW" => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+}
