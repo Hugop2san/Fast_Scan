@@ -16,7 +16,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddHttpClient();
 
 // EDA
-builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
+builder.Services.AddScoped<IEventBus, InMemoryEventBus>();
 
 // Use case dispatcher
 builder.Services.AddScoped<ScanDispatcher>();
