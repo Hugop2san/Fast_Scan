@@ -1,9 +1,8 @@
-﻿@using consulta.vulnerabilidade.Components.Layout
-@using consulta.vulnerabilidade.Components.Pages
+@using consulta.vulnerabilidade.Components.Layout
 
 <Router AppAssembly="@typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@ResolveLayout(routeData)" />
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
     <NotFound>
@@ -12,15 +11,3 @@
         </LayoutView>
     </NotFound>
 </Router>
-
-@code {
-    private static Type ResolveLayout(RouteData routeData)
-    {
-        // Home/landing sem sidebar
-        if (routeData.PageType == typeof(Home))
-            return typeof(LandingLayout);
-
-        // Restante com sidebar
-        return typeof(MainLayout);
-    }
-}

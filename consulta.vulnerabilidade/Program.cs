@@ -27,7 +27,6 @@ builder.Services.AddScoped<IPublicSurfaceExtractor, HttpPublicSurfaceExtractor>(
 // Analyzers
 builder.Services.AddScoped<IVulnerabilityAnalyzer, SecurityHeadersAnalyzer>();
 builder.Services.AddScoped<IVulnerabilityAnalyzer, FingerprintAnalyzer>();
-builder.Services.AddScoped<IVulnerabilityAnalyzer, BlazorHintsAnalyzer>();
 
 // Storage local
 builder.Services.AddScoped<ILocalStorage, BrowserLocalStorage>();
