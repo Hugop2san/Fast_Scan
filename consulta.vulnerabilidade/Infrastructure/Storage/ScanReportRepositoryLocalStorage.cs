@@ -39,6 +39,15 @@ public sealed class ScanReportRepositoryLocalStorage : IScanReportRepository
         return recent.Take(take).ToList();
     }
 
+    public async Task DeleteByUrlAsync(string url, CancellationToken ct = default)
+    {
+        var recent = await GetRecentInternalAsync() ?? new List<ScanReport>();
+        recent.RemoveAll(r => r.Url.Equals(url, StringComparison.OrdinalIgnoreCase));
+
+        await _ls.SetAsync(KEY_RECENT, JsonSerializer.Serialize(recent));
+        await _ls.RemoveAsync(KeyLastByUrl(url));
+    }
+
     private async Task<List<ScanReport>?> GetRecentInternalAsync()
     {
         var json = await _ls.GetAsync(KEY_RECENT);

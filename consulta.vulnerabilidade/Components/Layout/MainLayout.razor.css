@@ -13,27 +13,42 @@ main {
 }
 
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
+    background-color: rgba(0,0,0,0.4);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    justify-content: space-between;
     height: 3.5rem;
     display: flex;
     align-items: center;
 }
 
-    .top-row ::deep a, .top-row ::deep .btn-link {
+.top-row-left {
+    display: flex;
+    align-items: center;
+}
+
+.top-row-right {
+    margin-left: auto;
+}
+
+.menu-toggle {
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 4px;
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+    .top-row-right ::deep a {
         white-space: nowrap;
-        margin-left: 1.5rem;
         text-decoration: none;
+        color: #fff;
     }
 
-    .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
+    .top-row-right ::deep a:hover {
         text-decoration: underline;
-    }
-
-    .top-row ::deep a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
 @media (max-width: 640.98px) {

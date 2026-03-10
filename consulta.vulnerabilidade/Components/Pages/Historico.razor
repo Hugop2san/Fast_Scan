@@ -1,0 +1,120 @@
+﻿@page "/historico"
+@using consulta.vulnerabilidade.Domain.Scans
+@using consulta.vulnerabilidade.Application.Abstractions
+@inject IScanReportRepository Repo
+
+<div class="container py-4">
+    <h1 class="mb-3">Historico de Analises</h1>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            <strong>Erro:</strong> @_error
+        </div>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="alert alert-info">Carregando historico...</div>
+    }
+    else if (_recent.Count == 0)
+    {
+        <div class="alert alert-secondary mb-0">
+            Nenhuma analise encontrada no historico.
+        </div>
+    }
+    else
+    {
+        <ul class="list-group">
+            @foreach (var r in _recent)
+            {
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>@r.Url</span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge @(r.IsOk ? "bg-success" : "bg-warning text-dark")">@r.StatusText</span>
+                            <button class="btn btn-sm btn-outline-danger" title="Excluir" @onclick="() => OnDelete(r.Url)">x</button>
+                        </div>
+                    </div>
+
+                    <ul class="mt-2 mb-0 text-muted">
+                        <li>Score: @r.Score</li>
+                        <li>Data: @r.CreatedAt.ToLocalTime()</li>
+                        <li>Total de achados: @r.FindingCount</li>
+                    </ul>
+
+                    @if (r.FindingTitles.Count > 0)
+                    {
+                        <ul class="mt-2 mb-0">
+                            @foreach (var title in r.FindingTitles)
+                            {
+                                <li>@title</li>
+                            }
+                        </ul>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    bool _isLoading = true;
+    string? _error;
+    IReadOnlyList<HistoricoItem> _recent = Array.Empty<HistoricoItem>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecentAsync();
+    }
+
+    async Task LoadRecentAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var reports = await Repo.GetRecentAsync(10);
+            _recent = reports.Select(r => new HistoricoItem(
+                r.Url,
+                r.Score,
+                r.CreatedAt,
+                r.Findings.Count,
+                r.Findings.Where(f => f.Title != "OK").Select(f => f.Title).ToList()
+            )).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    async Task OnDelete(string url)
+    {
+        try
+        {
+            await Repo.DeleteByUrlAsync(url);
+            await LoadRecentAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    sealed record HistoricoItem(
+        string Url,
+        int Score,
+        DateTimeOffset CreatedAt,
+        int FindingCount,
+        IReadOnlyList<string> FindingTitles)
+    {
+        public bool IsOk => FindingCount == 0;
+        public string StatusText => IsOk ? "OK" : "Com achados";
+    }
+}

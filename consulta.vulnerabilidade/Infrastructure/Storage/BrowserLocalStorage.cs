@@ -14,4 +14,7 @@ public sealed class BrowserLocalStorage : ILocalStorage
 
     public Task<string?> GetAsync(string key)
         => _js.InvokeAsync<string?>("localStorage.getItem", key).AsTask();
+
+    public Task RemoveAsync(string key)
+        => _js.InvokeVoidAsync("localStorage.removeItem", key).AsTask();
 }
