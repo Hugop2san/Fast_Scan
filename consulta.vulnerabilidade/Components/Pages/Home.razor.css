@@ -1,5 +1,5 @@
-.home-center-shell {
-    margin-top: 50%;
+﻿.home-center-shell {
+    margin-top:;
     padding: 1rem 1.25rem 1.5rem;
     border-radius: 24px;
     transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
@@ -26,7 +26,7 @@
 .scan-container {
     max-width: 700px;
     margin: auto;
-    margin-top: 80px;
+    margin-top: 5px;
 }
 
 .scan-input-row {
