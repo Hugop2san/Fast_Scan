@@ -1,4 +1,4 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 
 <div class="page">
     <div class="sidebar" style="display: @(_hideMenu ? "none" : "block");">
@@ -6,17 +6,16 @@
     </div>
 
     <main>
-        <div class="top-row px-4" style="background-color: rgba(0,0,0,0.4); border-bottom: 1px solid rgba(255,255,255,0.12);">
-            <div class="top-row-left">
+        <header class="app-topbar px-4 navbar navbar-dark" style="background-color: #05163d; border-bottom: 1px solid rgba(255,255,255,0.14);">
+            <div class="app-topbar-left">
                 <button class="menu-toggle" title="Mostrar/Ocultar menu" @onclick="ToggleMenu">&#9776;</button>
             </div>
 
-            <div class="top-row-right">
+            <div class="app-topbar-right">
                 <a href="https://learn.microsoft.com/aspnet/core/" target="_blank" style="color: #fff;">About</a>
             </div>
-        </div>
-
-        <article class="content px-4">
+        </header>
+        <article class="content px-4 py-4">
             @Body
         </article>
     </main>

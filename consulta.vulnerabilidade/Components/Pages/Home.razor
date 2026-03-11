@@ -6,44 +6,67 @@
 @inject ScanDispatcher Dispatcher
 @inject IScanReportRepository Repo
 
-<div class="container py-4">
+<div class="home-page-shell" style="@PageShellStyle">
+<div class="container home-center-shell @(_darkMode ? "home-mode-dark" : string.Empty)" style="@HomeContainerStyle">
 
-    <div class="scan-input-row mb-3" style="width: 50%; min-width: 320px; margin-left: auto; margin-right: auto; display: flex; gap: 14px;">
-        <input class="form-control"
-               placeholder='Digite seu site "https://chatgpt.com/"'
-               @bind="_url" />
-        <button class="btn btn-primary" @onclick="OnAnalyze">Analisar vulnerabilidades</button>
+    <div class="home-hero">
+        <div class="home-theme-toggle form-check form-switch">
+            <input class="form-check-input"
+                   type="checkbox"
+                   role="switch"
+                   id="homeThemeSwitch"
+                   @bind="_darkMode" />
+            <label class="form-check-label" for="homeThemeSwitch">Modo escuro</label>
+        </div>
+
+        <div class="scan-container scan-input-row mb-3"
+             style="max-width:700px; margin:auto; margin-top:80px;">
+            <div class="input-group futuristic-search"
+                 style="display:flex; width:100%; border-radius:20px; overflow:visible; gap:10px;">
+                <input type="text"
+                       class="form-control futuristic-input"
+                       style="@InputStyle"
+                       placeholder="https://example.com"
+                       @bind="_url" />
+                <button class="btn futuristic-btn"
+                        style="@ButtonStyle"
+                        @onclick="OnAnalyze">
+                    Start Scan
+                </button>
+            </div>
+        </div>
+
+        <p class="text-muted mb-4 home-helper-text text-center" style="@HelperTextStyle">
+            Cole uma URL e receba um checklist de hardening + explicação (leigo + técnico).
+        </p>
     </div>
-    <p class="text-muted mb-4">
-        Cole uma URL e receba um checklist de hardening + explicação (leigo + técnico).
-    </p>
 
     @if (!string.IsNullOrWhiteSpace(_status))
     {
-        <div class="alert alert-secondary">
+        <div class="alert alert-secondary" style="@StatusAlertStyle">
             <strong>Status:</strong> @_status
         </div>
     }
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
+        <div class="alert alert-danger" style="@ErrorAlertStyle">
             <strong>Erro:</strong> @_error
         </div>
     }
 
     @if (_isLoading)
     {
-        <div class="alert alert-info">Analisando... (MVP: aguarde finalizar)</div>
+        <div class="alert alert-info" style="@InfoAlertStyle">Analisando... (MVP: aguarde finalizar)</div>
     }
 
     @if (_lastReport is not null)
     {
-        <div class="card p-3">
+        <div class="card p-3" style="@ResultCardStyle">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="mb-0">Resultado</h5>
-                    <small class="text-muted">@_lastReport!.Url • @_lastReport!.CreatedAt.ToLocalTime()</small>
+                    <small class="text-muted" style="@HelperTextStyle">@_lastReport!.Url • @_lastReport!.CreatedAt.ToLocalTime()</small>
                 </div>
                 <span class="badge bg-primary">Score: @_lastReport.Score/100</span>
             </div>
@@ -79,6 +102,7 @@
     }
 
 </div>
+</div>
 
 
 
@@ -93,6 +117,39 @@
     string? _error;
 
     ScanReport? _lastReport;
+    bool _darkMode = false;
+
+    string PageShellStyle => _darkMode
+        ? "background:#0f172a; color:#e5eefb; min-height:calc(100vh - 3.5rem); padding:1.5rem 0 3rem; transition:background-color .2s ease,color .2s ease;"
+        : "background:transparent; color:inherit; min-height:calc(100vh - 3.5rem); padding:1.5rem 0 3rem; transition:background-color .2s ease,color .2s ease;";
+
+    string HomeContainerStyle => _darkMode
+        ? "background:#0f172a; color:#e5eefb; border-radius:24px; box-shadow:0 20px 45px rgba(15,23,42,.22);"
+        : "background:transparent; color:inherit; border-radius:24px; box-shadow:none;";
+
+    string InputStyle => _darkMode
+        ? "background:#162033; border:2px solid #38bdf8; color:#f8fafc; padding:18px 20px; font-size:18px; border-radius:20px 0 0 20px; box-shadow:none;"
+        : "background:#0f172a; border:2px solid #38bdf8; color:white; padding:18px 20px; font-size:18px; border-radius:20px 0 0 20px; box-shadow:none;";
+
+    string ButtonStyle => "background:linear-gradient(45deg,#06b6d4,#3b82f6); border:none; padding:18px 28px; font-size:18px; font-weight:600; border-radius:0 20px 20px 0; color:white; white-space:nowrap;";
+
+    string HelperTextStyle => _darkMode ? "color:#cbd5e1 !important;" : string.Empty;
+
+    string StatusAlertStyle => _darkMode
+        ? "background:#1e293b; color:#e5eefb; border-color:rgba(148,163,184,.22);"
+        : string.Empty;
+
+    string ErrorAlertStyle => _darkMode
+        ? "background:#3f1d1d; color:#ffe4e6; border-color:rgba(248,113,113,.28);"
+        : string.Empty;
+
+    string InfoAlertStyle => _darkMode
+        ? "background:#082f49; color:#e0f2fe; border-color:rgba(56,189,248,.32);"
+        : string.Empty;
+
+    string ResultCardStyle => _darkMode
+        ? "background:#111827; color:#e5eefb; border-color:rgba(148,163,184,.18);"
+        : string.Empty;
 
     async Task OnAnalyze()
     {

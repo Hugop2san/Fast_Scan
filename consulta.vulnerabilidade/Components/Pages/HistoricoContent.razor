@@ -1,0 +1,85 @@
+@using consulta.vulnerabilidade.Domain.Scans
+
+<section class="historico-page-shell py-2">
+    <header class="historico-page-header">
+        <h1 class="historico-page-title">Historico de Analises</h1>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="alert alert-danger">
+            <strong>Erro:</strong> @Error
+        </div>
+    }
+
+    @if (IsLoading)
+    {
+        <div class="alert alert-info">Carregando historico...</div>
+    }
+    else if (Reports.Count == 0)
+    {
+        <div class="alert alert-secondary mb-0">
+            Nenhuma analise encontrada no historico.
+        </div>
+    }
+    else
+    {
+        <ul class="list-group historico-list">
+            @foreach (var report in Reports)
+            {
+                var findingCount = GetFindingCount(report);
+                var findingTitles = GetFindingTitles(report);
+
+                <li class="list-group-item historico-list-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>@report.Url</span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge @(findingCount == 0 ? "bg-success" : "bg-warning text-dark")">
+                                @(findingCount == 0 ? "OK" : "Com achados")
+                            </span>
+                            <button class="btn btn-sm btn-outline-danger" title="Excluir" @onclick="() => OnDelete.InvokeAsync(report.Url)">x</button>
+                        </div>
+                    </div>
+
+                    <ul class="mt-2 mb-0 text-muted">
+                        <li>Score: @report.Score</li>
+                        <li>Data: @report.CreatedAt.ToLocalTime()</li>
+                        <li>Total de achados: @findingCount</li>
+                    </ul>
+
+                    @if (findingTitles.Count > 0)
+                    {
+                        <ul class="mt-2 mb-0">
+                            @foreach (var title in findingTitles)
+                            {
+                                <li>@title</li>
+                            }
+                        </ul>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ScanReport> Reports { get; set; } = Array.Empty<ScanReport>();
+
+    [Parameter]
+    public EventCallback<string> OnDelete { get; set; }
+
+    static int GetFindingCount(ScanReport report) => report.Findings.Count(f => f.Title != "OK");
+
+    static IReadOnlyList<string> GetFindingTitles(ScanReport report) =>
+        report.Findings
+            .Where(f => f.Title != "OK")
+            .Select(f => f.Title)
+            .ToList();
+}
