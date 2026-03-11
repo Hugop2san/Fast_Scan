@@ -64,3 +64,9 @@ dotnet run
 ## Proximos passos
 - Backlog completo em `docs/ISSUES_BACKLOG.md`.
 - Foco sugerido: descoberta passiva (`robots/sitemap`) e exposicao de lideranca (CEO/CTO/CISO).
+
+## Template base
+
+<img width="1920" height="889" alt="image" src="https://github.com/user-attachments/assets/fe1d20c5-31fa-4c15-9b4f-e51f7b5946d9" />
+
+<img width="1920" height="887" alt="image" src="https://github.com/user-attachments/assets/5bcd6649-a121-4823-b229-5cb695033c0a" />
