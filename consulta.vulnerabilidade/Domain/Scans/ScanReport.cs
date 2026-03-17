@@ -1,11 +1,10 @@
-﻿using consulta.vulnerabilidade.Domain.Scans;
+﻿using System.Text.Json.Serialization;
 
 namespace consulta.vulnerabilidade.Domain.Scans;
 
-
-    /// <summary>
-    /// Agregado raiz: o resultado final de um scan.
-    /// </summary>
+/// <summary>
+/// Agregado raiz: o resultado final de um scan.
+/// </summary>
 public sealed class ScanReport
 {
     public ScanId Id { get; }
@@ -24,6 +23,23 @@ public sealed class ScanReport
         Score = 100;
     }
 
+    [JsonConstructor]
+    public ScanReport(
+        ScanId id,
+        string url,
+        DateTimeOffset createdAt,
+        int score,
+        IReadOnlyList<ScanFinding>? findings)
+    {
+        Id = id;
+        Url = url;
+        CreatedAt = createdAt;
+        Score = Math.Clamp(score, 0, 100);
+
+        if (findings is not null)
+            _findings.AddRange(findings);
+    }
+
     public void AddFinding(ScanFinding finding)
     {
         _findings.Add(finding);
@@ -38,5 +54,3 @@ public sealed class ScanReport
         _ => 8
     };
 }
-
-

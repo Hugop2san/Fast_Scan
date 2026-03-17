@@ -9,11 +9,12 @@ main {
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, #3B0764 0%, #6D28D9 70%);
+    background-color: #162033 !important;
+    background-image: none !important;
 }
 
 .page > main > .app-topbar {
-    background-color: #05163d !important;
+    background-color: #162033 !important;
     background-image: none !important;
     border-bottom: 1px solid rgba(255,255,255,0.14);
     justify-content: space-between;
@@ -34,6 +35,7 @@ article.content {
 
 .app-topbar-right {
     margin-left: auto;
+    background-color: #162033 !important;
 }
 
 .menu-toggle {

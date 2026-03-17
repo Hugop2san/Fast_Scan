@@ -9,18 +9,32 @@
     text-align: center;
 }
 
-.home-theme-toggle {
-    width: fit-content;
+.home-hero-media-slot {
+    width: min(100%, 760px);
     margin: 0 auto 1rem;
-    font-size: 0.875rem;
 }
 
-.home-theme-toggle .form-check-input {
-    cursor: pointer;
+.home-hero-gif-frame {
+    min-height: 220px;
+    border: 2px dashed rgba(56, 189, 248, 0.55);
+    border-radius: 18px;
+    background: rgba(22, 32, 51, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
 }
 
-.home-theme-toggle .form-check-label {
-    cursor: pointer;
+.home-hero-gif-placeholder {
+    color: #5b6b87;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.home-hero-subtitle {
+    margin: 0.75rem 0 0;
+    color: #475569;
+    font-size: 0.98rem;
 }
 
 .scan-container {
@@ -45,7 +59,7 @@
 .scan-container .futuristic-input,
 .scan-input-row .form-control.futuristic-input {
     flex: 1;
-    background: #0f172a !important;
+    background: #162033 !important;
     border: 2px solid #38bdf8 !important;
     color: white !important;
     padding: 18px 20px !important;
@@ -54,7 +68,7 @@
 }
 
 .futuristic-input:focus {
-    background: #0f172a !important;
+    background: #162033 !important;
     color: white !important;
     border-color: #38bdf8 !important;
     box-shadow: 0 0 12px #38bdf8 !important;
@@ -86,42 +100,11 @@
     text-align: center;
 }
 
-.home-mode-dark {
-    background: #0f172a;
-    color: #e5eefb;
-    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
-}
-
-.home-mode-dark .home-helper-text,
-.home-mode-dark .text-muted,
-.home-mode-dark small.text-muted {
-    color: #cbd5e1 !important;
-}
-
-.home-mode-dark .futuristic-input {
-    background: #162033 !important;
-    color: #f8fafc !important;
-}
-
-.home-mode-dark .card {
-    background: #111827;
-    color: #e5eefb;
-    border-color: rgba(148, 163, 184, 0.18);
-}
-
-.home-mode-dark .alert-secondary {
-    background: #1e293b;
-    color: #e5eefb;
-    border-color: rgba(148, 163, 184, 0.22);
-}
-
-.home-mode-dark .alert-info {
-    background: #082f49;
-    color: #e0f2fe;
-    border-color: rgba(56, 189, 248, 0.32);
-}
-
 @media (min-width: 992px) {
+    .home-hero-gif-frame {
+        min-height: 260px;
+    }
+
     .scan-input-row {
         width: min(100%, 760px);
     }

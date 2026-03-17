@@ -1,12 +1,12 @@
 ﻿@inherits LayoutComponentBase
 
 <div class="page">
-    <div class="sidebar" style="display: @(_hideMenu ? "none" : "block");">
+    <div class="sidebar" style="display: @(_hideMenu ? "none" : "block"); background-color:#162033 !important; background-image:none !important;">
         <NavMenu />
     </div>
 
     <main>
-        <header class="app-topbar px-4 navbar navbar-dark" style="background-color: #05163d; border-bottom: 1px solid rgba(255,255,255,0.14);">
+        <header class="app-topbar px-4 navbar navbar-dark" style="background-color:#162033 !important; background-image:none !important; border-bottom: 1px solid rgba(255,255,255,0.14);">
             <div class="app-topbar-left">
                 <button class="menu-toggle" title="Mostrar/Ocultar menu" @onclick="ToggleMenu">&#9776;</button>
             </div>
@@ -32,3 +32,4 @@
 
     private void ToggleMenu() => _hideMenu = !_hideMenu;
 }
+
