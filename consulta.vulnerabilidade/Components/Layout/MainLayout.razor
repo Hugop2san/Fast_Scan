@@ -1,18 +1,25 @@
 ﻿@inherits LayoutComponentBase
 
 <div class="page">
-    <div class="sidebar" style="display: @(_hideMenu ? "none" : "block"); background-color:#162033 !important; background-image:none !important;">
-        <NavMenu />
+    <div class="sidebar @(_isCollapsed ? "collapsed" : string.Empty)"
+         style="background-color:#162033 !important; background-image:none !important; width:@(_isCollapsed ? "84px" : "250px"); overflow:hidden; transition:width .2s ease;">
+        <NavMenu IsCollapsed="@_isCollapsed" />
     </div>
+
+    <button class="sidebar-handle"
+            title="Expandir/Recolher menu"
+            @onclick="ToggleMenu"
+            style="@GetSidebarHandleStyle()">
+        @(_isCollapsed ? "›" : "‹")
+    </button>
 
     <main>
         <header class="app-topbar px-4 navbar navbar-dark" style="background-color:#162033 !important; background-image:none !important; border-bottom: 1px solid rgba(255,255,255,0.14);">
             <div class="app-topbar-left">
-                <button class="menu-toggle" title="Mostrar/Ocultar menu" @onclick="ToggleMenu">&#9776;</button>
             </div>
 
-            <div class="app-topbar-right">
-                <a href="https://learn.microsoft.com/aspnet/core/" target="_blank" style="color: #fff;">About</a>
+            <div class="app-topbar-right" style="background:transparent !important;">
+                <a href="https://learn.microsoft.com/aspnet/core/" target="_blank" style="color: rgba(255,255,255,.72);">About</a>
             </div>
         </header>
         <article class="content px-4 py-4">
@@ -28,8 +35,15 @@
 </div>
 
 @code {
-    private bool _hideMenu = true;
+    private bool _isCollapsed = true;
 
-    private void ToggleMenu() => _hideMenu = !_hideMenu;
+    private void ToggleMenu() => _isCollapsed = !_isCollapsed;
+
+    private string GetSidebarHandleStyle() =>
+        $"position:fixed; top:50%; left:{(_isCollapsed ? 72 : 238)}px; transform:translateY(-50%); " +
+        "width:28px; height:56px; border-radius:0 10px 10px 0; border:1px solid rgba(255,255,255,.22); " +
+        "border-left:none; background:#162033; color:#e6edf6; font-size:1.5rem; line-height:1; " +
+        "display:flex; align-items:center; justify-content:center; z-index:1200; " +
+        "box-shadow:0 8px 24px rgba(3,10,25,.28); cursor:pointer; transition:left .2s ease;";
 }
 

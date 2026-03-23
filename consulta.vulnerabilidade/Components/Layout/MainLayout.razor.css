@@ -35,7 +35,7 @@ article.content {
 
 .app-topbar-right {
     margin-left: auto;
-    background-color: #162033 !important;
+    background: transparent !important;
 }
 
 .menu-toggle {
@@ -75,7 +75,6 @@ article.content {
     }
 
     .sidebar {
-        width: 250px;
         height: 100vh;
         position: sticky;
         top: 0;

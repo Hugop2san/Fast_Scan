@@ -52,6 +52,9 @@
         align-items: center;
         line-height: 3rem;
         width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        transition: padding 0.2s ease;
     }
 
 .nav-item ::deep a.active {

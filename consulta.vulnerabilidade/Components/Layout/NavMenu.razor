@@ -1,22 +1,47 @@
-<div class="top-row mb-3 ps-3 navbar navbar-dark" style="background-color:#162033 !important; background-image:none !important;">
-    <div class="container-fluid">
-        <a class="navbar-brand" href=""><h2>Fast Scan</h2></a>
+﻿<div class="navmenu-shell @(IsCollapsed ? "collapsed" : string.Empty)">
+    <div class="top-row mb-3 ps-3 navbar navbar-dark" style="background-color:#162033 !important; background-image:none !important;">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="" style="@GetBrandStyle()"><h2>Fast Scan</h2></a>
+        </div>
+    </div>
+
+    <div class="nav-scrollable" style="background-color:#162033 !important; background-image:none !important;">
+        <nav class="flex-column">
+            <div class="nav-item px-3" style="@GetItemContainerStyle()">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All" style="@GetLinkStyle()">
+                    <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true" style="@GetIconStyle()"></span>
+                    <span class="nav-label" style="@GetLabelStyle()">Home</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3" style="@GetItemContainerStyle()">
+                <NavLink class="nav-link" href="historico" style="@GetLinkStyle()">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true" style="@GetIconStyle()"></span>
+                    <span class="nav-label" style="@GetLabelStyle()">Historico</span>
+                </NavLink>
+            </div>
+        </nav>
     </div>
 </div>
 
-<div class="nav-scrollable" style="background-color:#162033 !important; background-image:none !important;">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+@code {
+    [Parameter]
+    public bool IsCollapsed { get; set; }
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="historico">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Historico
-            </NavLink>
-        </div>
-    </nav>
-</div>
+    private string GetBrandStyle() =>
+        IsCollapsed ? "display:none;" : string.Empty;
 
+    private string GetItemContainerStyle() =>
+        IsCollapsed ? "padding-left:.45rem !important; padding-right:.45rem !important;" : string.Empty;
+
+    private string GetLinkStyle() =>
+        IsCollapsed ? "justify-content:center;" : string.Empty;
+
+    private string GetIconStyle() =>
+        IsCollapsed ? "margin-right:0;" : string.Empty;
+
+    private string GetLabelStyle() =>
+        IsCollapsed
+            ? "opacity:0; max-width:0; overflow:hidden; display:inline-block;"
+            : "opacity:1; max-width:150px; display:inline-block;";
+}
