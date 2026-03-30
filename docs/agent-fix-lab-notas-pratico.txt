@@ -163,7 +163,7 @@ public interface IGitProvider
 ```
 
 ==================================================
-4) APPLICATION - REQUESTS E HANDLERS
+4) APPLICATION - REQUESTS E HANDLERS		- OK
 ==================================================
 
 Arquivo: Application/AgentFix/Requests/RequestFixCommand.cs
@@ -276,7 +276,7 @@ public sealed class ProcessFixJobHandler
 ```
 
 ==================================================
-5) INFRASTRUCTURE - STORAGE, AGENT E GITHUB
+5) INFRASTRUCTURE - STORAGE, AGENT E GITHUB	- PENDENTE
 ==================================================
 
 Arquivo: Infrastructure/AgentFix/Storage/InMemoryFixJobRepository.cs
@@ -475,3 +475,327 @@ Modelo de request:
 - Sistema abre PR em branch nova (quando provider real estiver implementado).
 - Merge permanece manual.
 - Nenhuma escrita direta em main/master.
+
+==================================================
+11) PASSO 11 - OPENAI CONFIG (API KEY E OPTIONS)
+==================================================
+
+Objetivo
+- Trocar o agent de regra fixa por um agent com LLM usando HttpClient comum.
+
+Arquivos novos
+- Infrastructure/AgentFix/OpenAI/OpenAiOptions.cs
+
+OpenAiOptions.cs
+```csharp
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.OpenAI;
+
+public sealed class OpenAiOptions
+{
+    public const string SectionName = "OpenAI";
+
+    public string BaseUrl { get; set; } = "https://api.openai.com";
+    public string ApiKey { get; set; } = string.Empty;
+    public string Model { get; set; } = "gpt-4.1-mini";
+    public int TimeoutSeconds { get; set; } = 60;
+}
+```
+
+appsettings.json (sem chave em texto puro)
+```json
+"OpenAI": {
+  "BaseUrl": "https://api.openai.com",
+  "ApiKey": "",
+  "Model": "gpt-4.1-mini",
+  "TimeoutSeconds": 60
+}
+```
+
+Como passar chave de forma segura
+- Preferir variavel de ambiente: OPENAI__APIKEY
+- Ou Secret Manager no ambiente local.
+
+==================================================
+12) PASSO 12 - HTTPCLIENT PURO PARA OPENAI
+==================================================
+
+Arquivos novos
+- Infrastructure/AgentFix/OpenAI/IOpenAiClient.cs
+- Infrastructure/AgentFix/OpenAI/OpenAiHttpClient.cs
+
+IOpenAiClient.cs
+```csharp
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.OpenAI;
+
+public interface IOpenAiClient
+{
+    Task<string> CreateFixPlanJsonAsync(string prompt, CancellationToken ct = default);
+}
+```
+
+OpenAiHttpClient.cs
+```csharp
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Options;
+
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.OpenAI;
+
+public sealed class OpenAiHttpClient : IOpenAiClient
+{
+    private readonly HttpClient _http;
+    private readonly OpenAiOptions _opt;
+
+    public OpenAiHttpClient(HttpClient http, IOptions<OpenAiOptions> opt)
+    {
+        _http = http;
+        _opt = opt.Value;
+
+        _http.BaseAddress = new Uri(_opt.BaseUrl);
+        _http.Timeout = TimeSpan.FromSeconds(_opt.TimeoutSeconds);
+        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _opt.ApiKey);
+    }
+
+    public async Task<string> CreateFixPlanJsonAsync(string prompt, CancellationToken ct = default)
+    {
+        var body = new
+        {
+            model = _opt.Model,
+            input = prompt,
+            text = new { format = new { type = "json_object" } }
+        };
+
+        var json = JsonSerializer.Serialize(body);
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        using var response = await _http.PostAsync("/v1/responses", content, ct);
+        var responseText = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"OpenAI error: {(int)response.StatusCode} - {responseText}");
+
+        return responseText;
+    }
+}
+```
+
+==================================================
+13) PASSO 13 - OPENAIFIXAGENT IMPLEMENTANDO IFixAgent
+==================================================
+
+Arquivos novos
+- Infrastructure/AgentFix/Agent/OpenAiFixAgent.cs
+
+OpenAiFixAgent.cs
+```csharp
+using System.Text.Json;
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+using consulta.vulnerabilidade.Domain.AgentFix;
+using consulta.vulnerabilidade.Infrastructure.AgentFix.OpenAI;
+
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.Agent;
+
+public sealed class OpenAiFixAgent : IFixAgent
+{
+    private readonly IOpenAiClient _client;
+
+    public OpenAiFixAgent(IOpenAiClient client)
+    {
+        _client = client;
+    }
+
+    public async Task<FixPlan> BuildPlanAsync(FixJob job, CancellationToken ct = default)
+    {
+        var prompt = $"""
+        Voce deve responder SOMENTE JSON valido.
+        Gere plano de correcao para finding {job.FindingId} do scan {job.ScanId}.
+        Regras obrigatorias:
+        - branchName deve seguir agent/fix/<scanId>/<findingId>
+        - nunca alterar pipeline de deploy
+        - nunca criar merge automatico
+        JSON esperado:
+        {
+          "branchName":"...",
+          "commitMessage":"...",
+          "pullRequestTitle":"...",
+          "pullRequestBody":"...",
+          "patches":[{"path":"...","newContent":"..."}]
+        }
+        """;
+
+        var raw = await _client.CreateFixPlanJsonAsync(prompt, ct);
+
+        // Parse minimo defensivo (ajuste conforme o payload real retornado)
+        using var doc = JsonDocument.Parse(raw);
+        var text = doc.RootElement.GetProperty("output_text").GetString() ?? "{}";
+
+        using var planDoc = JsonDocument.Parse(text);
+        var root = planDoc.RootElement;
+
+        var branchName = root.GetProperty("branchName").GetString() ?? $"agent/fix/{job.ScanId}/{job.FindingId}";
+        var commitMessage = root.GetProperty("commitMessage").GetString() ?? $"fix(security): {job.FindingId}";
+        var prTitle = root.GetProperty("pullRequestTitle").GetString() ?? $"[Agent Fix] {job.FindingId}";
+        var prBody = root.GetProperty("pullRequestBody").GetString() ?? "PR gerado pelo agent";
+
+        var patches = new List<FilePatch>();
+        foreach (var p in root.GetProperty("patches").EnumerateArray())
+        {
+            patches.Add(new FilePatch(
+                p.GetProperty("path").GetString() ?? string.Empty,
+                p.GetProperty("newContent").GetString() ?? string.Empty));
+        }
+
+        return new FixPlan(branchName, commitMessage, prTitle, prBody, patches);
+    }
+}
+```
+
+==================================================
+14) PASSO 14 - COMO ESCOLHER METODOS/ROTAS QUE O AGENT PODE USAR
+==================================================
+
+Padrao recomendado: allowlist explicita.
+
+Arquivo novo
+- Application/AgentFix/Abstractions/IAgentToolPolicy.cs
+
+IAgentToolPolicy.cs
+```csharp
+namespace consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+
+public interface IAgentToolPolicy
+{
+    bool CanUseRoute(string method, string route);
+    bool CanTouchFile(string path);
+}
+```
+
+Implementacao simples
+- Permitir apenas:
+  - POST /api/fix-jobs
+  - GET /api/fix-jobs/{id}
+- Bloquear:
+  - DELETE
+  - endpoints administrativos
+  - arquivos fora de src/app
+
+Exemplo de regra
+```csharp
+public bool CanUseRoute(string method, string route)
+    => (method == "POST" && route == "/api/fix-jobs") ||
+       (method == "GET" && route.StartsWith("/api/fix-jobs/", StringComparison.OrdinalIgnoreCase));
+```
+
+==================================================
+15) PASSO 15 - POLICIES (AUTORIZACAO E RISCO)
+==================================================
+
+Crie politicas por nivel de risco:
+- policy.agent.fix.low
+- policy.agent.fix.medium
+- policy.agent.fix.high
+
+Regra pratica:
+- low/medium: pode abrir PR automaticamente.
+- high/critical: exige aprovacao humana antes de processar job.
+
+No endpoint POST /api/fix-jobs
+- validar severidade do finding
+- decidir se job vai para Queued ou PendingApproval
+
+==================================================
+16) PASSO 16 - SKILLS DO AGENT (MODELO SIMPLES)
+==================================================
+
+No laboratorio, "skill" pode ser um conjunto de prompt + parser + validador.
+
+Estrutura sugerida
+- Infrastructure/AgentFix/Skills/
+  - ISkill.cs
+  - SecurityHeadersSkill.cs
+  - CorsSkill.cs
+  - DependencyUpgradeSkill.cs
+
+Contrato
+```csharp
+public interface ISkill
+{
+    bool CanHandle(string findingType);
+    string BuildPrompt(string findingType, string evidence);
+}
+```
+
+Selecao de skill
+- IFixAgent recebe IEnumerable<ISkill>
+- escolhe a primeira skill que CanHandle(findingType)
+
+==================================================
+17) PASSO 17 - EXECUCAO DOS HANDLERS (JOB RUNNER)
+==================================================
+
+Para nao travar request HTTP:
+- criar fila em memoria (Channel<FixJobId>)
+- endpoint POST apenas enfileira
+- BackgroundService consome fila e chama ProcessFixJobHandler
+
+Arquivos sugeridos
+- Infrastructure/AgentFix/Runtime/FixJobQueue.cs
+- Infrastructure/AgentFix/Runtime/FixJobWorker.cs
+
+Resultado
+- request rapido
+- processamento assincrono
+- status consultado por GET
+
+==================================================
+18) PASSO 18 - DI FINAL (LEMBRETE ESSENCIAL)
+==================================================
+
+No Program.cs adicionar/ajustar:
+```csharp
+using consulta.vulnerabilidade.Infrastructure.AgentFix.OpenAI;
+
+builder.Services.Configure<OpenAiOptions>(
+    builder.Configuration.GetSection(OpenAiOptions.SectionName));
+
+builder.Services.AddHttpClient<IOpenAiClient, OpenAiHttpClient>();
+
+// escolher qual agent usar:
+// builder.Services.AddScoped<IFixAgent, SimpleRuleBasedFixAgent>();
+builder.Services.AddScoped<IFixAgent, OpenAiFixAgent>();
+
+// policies e runtime
+builder.Services.AddSingleton<IAgentToolPolicy, AgentToolPolicy>();
+// builder.Services.AddSingleton<FixJobQueue>();
+// builder.Services.AddHostedService<FixJobWorker>();
+```
+
+Se esquecer esse bloco de DI, os handlers nao resolvem dependencias.
+
+==================================================
+19) PASSO 19 - VALIDACOES ANTES DE RODAR
+==================================================
+
+Checklist:
+1. OPENAI__APIKEY configurada no ambiente.
+2. GitHub token configurado.
+3. IFixAgent apontando para OpenAiFixAgent no DI.
+4. IGitProvider real implementado.
+5. Endpoint POST cria/enfileira job.
+6. Endpoint GET retorna status.
+7. Branch criada no padrao agent/fix/<scanId>/<findingId>.
+8. PR criado e aguardando merge manual.
+
+==================================================
+20) PASSO 20 - COMO O AGENT AGE NA PRATICA (RESUMO)
+==================================================
+
+- Usuario clica "Corrigir com Agent".
+- Sistema cria job.
+- Worker executa ProcessFixJobHandler.
+- OpenAiFixAgent gera plano (patches + mensagem + PR).
+- GitHubProvider aplica patches em branch nova.
+- GitHubProvider abre PR.
+- Sistema salva prUrl e status PrOpened.
+- Usuario revisa e faz merge manual.
