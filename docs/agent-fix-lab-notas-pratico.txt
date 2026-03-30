@@ -1,0 +1,477 @@
+﻿FEATURE: CORRIGIR COM AGENT (LAB) - GUIA PRATICO COM CODIGO
+
+Arquivo complementar ao guia OO.
+Objetivo aqui: facilitar implementacao manual com estrutura + nome de classe + codigo base.
+
+IMPORTANTE DO MVP
+- Sempre criar branch nova.
+- Sempre abrir PR.
+- Nunca fazer merge automatico.
+- Nunca escrever direto em main/master.
+
+==================================================
+1) ESTRUTURA DE PASTAS E ARQUIVOS		- OK
+==================================================
+
+consulta.vulnerabilidade/
+  Domain/
+    AgentFix/
+      FixJobId.cs
+      FixJobStatus.cs
+      FixJob.cs
+
+  Application/
+    AgentFix/
+      Abstractions/
+        IFixJobRepository.cs
+        IFixAgent.cs
+        IGitProvider.cs
+      Requests/
+        RequestFixCommand.cs
+        RequestFixResult.cs
+      Handlers/
+        RequestFixHandler.cs
+        ProcessFixJobHandler.cs
+
+  Infrastructure/
+    AgentFix/
+      Storage/
+        InMemoryFixJobRepository.cs
+      Agent/
+        SimpleRuleBasedFixAgent.cs
+      GitHub/
+        GitHubApiOptions.cs
+        GitHubApiProvider.cs
+
+  docs/
+    agent-fix-lab-notas.txt
+    agent-fix-lab-notas-pratico.txt
+
+==================================================
+2) DOMAIN (JA FEITO POR VOCE, MAS DEIXEI A BASE)	- OK
+==================================================
+
+Arquivo: Domain/AgentFix/FixJobId.cs
+```csharp
+namespace consulta.vulnerabilidade.Domain.AgentFix;
+
+public readonly record struct FixJobId(Guid Value)
+{
+    public static FixJobId New() => new(Guid.NewGuid());
+    public override string ToString() => Value.ToString("N");
+}
+```
+
+Arquivo: Domain/AgentFix/FixJobStatus.cs
+```csharp
+namespace consulta.vulnerabilidade.Domain.AgentFix;
+
+public enum FixJobStatus
+{
+    Queued = 0,
+    Running = 1,
+    PrOpened = 2,
+    Failed = 3,
+    Cancelled = 4
+}
+```
+
+Arquivo: Domain/AgentFix/FixJob.cs
+```csharp
+namespace consulta.vulnerabilidade.Domain.AgentFix;
+
+public sealed class FixJob
+{
+    public FixJobId Id { get; init; }
+    public string ScanId { get; init; } = string.Empty;
+    public string FindingId { get; init; } = string.Empty;
+    public string Repository { get; init; } = string.Empty; // owner/repo
+    public string BaseBranch { get; init; } = "main";
+    public string? CreatedPrUrl { get; private set; }
+    public FixJobStatus Status { get; private set; } = FixJobStatus.Queued;
+    public string? ErrorMessage { get; private set; }
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? FinishedAt { get; private set; }
+
+    public void MarkRunning() => Status = FixJobStatus.Running;
+
+    public void MarkPrOpened(string prUrl)
+    {
+        Status = FixJobStatus.PrOpened;
+        CreatedPrUrl = prUrl;
+        FinishedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkFailed(string error)
+    {
+        Status = FixJobStatus.Failed;
+        ErrorMessage = error;
+        FinishedAt = DateTimeOffset.UtcNow;
+    }
+}
+```
+
+==================================================
+3) APPLICATION - ABSTRACTIONS 			-  OK
+==================================================
+
+Arquivo: Application/AgentFix/Abstractions/IFixJobRepository.cs
+```csharp
+using consulta.vulnerabilidade.Domain.AgentFix;
+
+namespace consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+
+public interface IFixJobRepository
+{
+    Task AddAsync(FixJob job, CancellationToken ct = default);
+    Task<FixJob?> GetByIdAsync(FixJobId id, CancellationToken ct = default);
+    Task UpdateAsync(FixJob job, CancellationToken ct = default);
+}
+```
+
+Arquivo: Application/AgentFix/Abstractions/IFixAgent.cs
+```csharp
+using consulta.vulnerabilidade.Domain.AgentFix;
+
+namespace consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+
+public interface IFixAgent
+{
+    Task<FixPlan> BuildPlanAsync(FixJob job, CancellationToken ct = default);
+}
+
+public sealed record FixPlan(
+    string BranchName,
+    string CommitMessage,
+    string PullRequestTitle,
+    string PullRequestBody,
+    IReadOnlyList<FilePatch> Patches);
+
+public sealed record FilePatch(string Path, string NewContent);
+```
+
+Arquivo: Application/AgentFix/Abstractions/IGitProvider.cs
+```csharp
+namespace consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+
+public interface IGitProvider
+{
+    Task CreateBranchAsync(string repository, string baseBranch, string newBranch, CancellationToken ct = default);
+    Task CommitFilesAsync(string repository, string branch, string commitMessage, IReadOnlyList<FilePatch> patches, CancellationToken ct = default);
+    Task<string> OpenPullRequestAsync(string repository, string baseBranch, string headBranch, string title, string body, CancellationToken ct = default);
+}
+```
+
+==================================================
+4) APPLICATION - REQUESTS E HANDLERS
+==================================================
+
+Arquivo: Application/AgentFix/Requests/RequestFixCommand.cs
+```csharp
+namespace consulta.vulnerabilidade.Application.AgentFix.Requests;
+
+public sealed record RequestFixCommand(
+    string ScanId,
+    string FindingId,
+    string Repository,
+    string BaseBranch);
+```
+
+Arquivo: Application/AgentFix/Requests/RequestFixResult.cs
+```csharp
+namespace consulta.vulnerabilidade.Application.AgentFix.Requests;
+
+public sealed record RequestFixResult(string JobId, string Status);
+```
+
+Arquivo: Application/AgentFix/Handlers/RequestFixHandler.cs
+```csharp
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+using consulta.vulnerabilidade.Application.AgentFix.Requests;
+using consulta.vulnerabilidade.Domain.AgentFix;
+
+namespace consulta.vulnerabilidade.Application.AgentFix.Handlers;
+
+public sealed class RequestFixHandler
+{
+    private readonly IFixJobRepository _repo;
+
+    public RequestFixHandler(IFixJobRepository repo)
+    {
+        _repo = repo;
+    }
+
+    public async Task<RequestFixResult> HandleAsync(RequestFixCommand cmd, CancellationToken ct = default)
+    {
+        var baseBranch = string.IsNullOrWhiteSpace(cmd.BaseBranch) ? "main" : cmd.BaseBranch;
+
+        var job = new FixJob
+        {
+            Id = FixJobId.New(),
+            ScanId = cmd.ScanId,
+            FindingId = cmd.FindingId,
+            Repository = cmd.Repository,
+            BaseBranch = baseBranch
+        };
+
+        await _repo.AddAsync(job, ct);
+        return new RequestFixResult(job.Id.ToString(), FixJobStatus.Queued.ToString());
+    }
+}
+```
+
+Arquivo: Application/AgentFix/Handlers/ProcessFixJobHandler.cs
+```csharp
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+using consulta.vulnerabilidade.Domain.AgentFix;
+
+namespace consulta.vulnerabilidade.Application.AgentFix.Handlers;
+
+public sealed class ProcessFixJobHandler
+{
+    private readonly IFixJobRepository _repo;
+    private readonly IFixAgent _agent;
+    private readonly IGitProvider _git;
+
+    public ProcessFixJobHandler(
+        IFixJobRepository repo,
+        IFixAgent agent,
+        IGitProvider git)
+    {
+        _repo = repo;
+        _agent = agent;
+        _git = git;
+    }
+
+    public async Task HandleAsync(string jobIdRaw, CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(jobIdRaw, out var parsed))
+            throw new InvalidOperationException("JobId invalido.");
+
+        var jobId = new FixJobId(parsed);
+        var job = await _repo.GetByIdAsync(jobId, ct) ?? throw new InvalidOperationException("FixJob nao encontrado.");
+
+        try
+        {
+            job.MarkRunning();
+            await _repo.UpdateAsync(job, ct);
+
+            var plan = await _agent.BuildPlanAsync(job, ct);
+
+            await _git.CreateBranchAsync(job.Repository, job.BaseBranch, plan.BranchName, ct);
+            await _git.CommitFilesAsync(job.Repository, plan.BranchName, plan.CommitMessage, plan.Patches, ct);
+            var prUrl = await _git.OpenPullRequestAsync(job.Repository, job.BaseBranch, plan.BranchName, plan.PullRequestTitle, plan.PullRequestBody, ct);
+
+            job.MarkPrOpened(prUrl);
+            await _repo.UpdateAsync(job, ct);
+        }
+        catch (Exception ex)
+        {
+            job.MarkFailed(ex.Message);
+            await _repo.UpdateAsync(job, ct);
+            throw;
+        }
+    }
+}
+```
+
+==================================================
+5) INFRASTRUCTURE - STORAGE, AGENT E GITHUB
+==================================================
+
+Arquivo: Infrastructure/AgentFix/Storage/InMemoryFixJobRepository.cs
+```csharp
+using System.Collections.Concurrent;
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+using consulta.vulnerabilidade.Domain.AgentFix;
+
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.Storage;
+
+public sealed class InMemoryFixJobRepository : IFixJobRepository
+{
+    private readonly ConcurrentDictionary<string, FixJob> _store = new();
+
+    public Task AddAsync(FixJob job, CancellationToken ct = default)
+    {
+        _store[job.Id.ToString()] = job;
+        return Task.CompletedTask;
+    }
+
+    public Task<FixJob?> GetByIdAsync(FixJobId id, CancellationToken ct = default)
+    {
+        _store.TryGetValue(id.ToString(), out var job);
+        return Task.FromResult(job);
+    }
+
+    public Task UpdateAsync(FixJob job, CancellationToken ct = default)
+    {
+        _store[job.Id.ToString()] = job;
+        return Task.CompletedTask;
+    }
+}
+```
+
+Arquivo: Infrastructure/AgentFix/Agent/SimpleRuleBasedFixAgent.cs
+```csharp
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+using consulta.vulnerabilidade.Domain.AgentFix;
+
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.Agent;
+
+public sealed class SimpleRuleBasedFixAgent : IFixAgent
+{
+    public Task<FixPlan> BuildPlanAsync(FixJob job, CancellationToken ct = default)
+    {
+        var branchName = $"agent/fix/{job.ScanId}/{job.FindingId}".ToLowerInvariant();
+
+        // MVP: patch vazio para validar o pipeline fim-a-fim.
+        // Proximo passo: preencher patches com mudancas reais por tipo de finding.
+        var plan = new FixPlan(
+            BranchName: branchName,
+            CommitMessage: $"fix(security): resolve finding {job.FindingId}",
+            PullRequestTitle: $"[Agent Fix] Corrige finding {job.FindingId}",
+            PullRequestBody:
+                "PR criado automaticamente pelo Agent.\n\n" +
+                "- Revisao humana obrigatoria\n" +
+                "- Merge manual\n" +
+                "- Sem alteracao direta em main\n",
+            Patches: new List<FilePatch>());
+
+        return Task.FromResult(plan);
+    }
+}
+```
+
+Arquivo: Infrastructure/AgentFix/GitHub/GitHubApiOptions.cs
+```csharp
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.GitHub;
+
+public sealed class GitHubApiOptions
+{
+    public const string SectionName = "GitHub";
+
+    public string BaseUrl { get; set; } = "https://api.github.com";
+    public string Token { get; set; } = string.Empty;
+    public string BotName { get; set; } = "agent-fix-bot";
+    public string BotEmail { get; set; } = "agent-fix-bot@example.local";
+}
+```
+
+Arquivo: Infrastructure/AgentFix/GitHub/GitHubApiProvider.cs
+```csharp
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+
+namespace consulta.vulnerabilidade.Infrastructure.AgentFix.GitHub;
+
+public sealed class GitHubApiProvider : IGitProvider
+{
+    public Task CreateBranchAsync(string repository, string baseBranch, string newBranch, CancellationToken ct = default)
+    {
+        // TODO: implementar GitHub REST API para criar refs/heads/newBranch
+        throw new NotImplementedException("Implementar CreateBranchAsync.");
+    }
+
+    public Task CommitFilesAsync(string repository, string branch, string commitMessage, IReadOnlyList<FilePatch> patches, CancellationToken ct = default)
+    {
+        // TODO: implementar create/update file contents + commit
+        throw new NotImplementedException("Implementar CommitFilesAsync.");
+    }
+
+    public Task<string> OpenPullRequestAsync(string repository, string baseBranch, string headBranch, string title, string body, CancellationToken ct = default)
+    {
+        // TODO: implementar POST /repos/{owner}/{repo}/pulls
+        throw new NotImplementedException("Implementar OpenPullRequestAsync.");
+    }
+}
+```
+
+==================================================
+6) DI (LEMBRETE OBRIGATORIO)
+==================================================
+
+No Program.cs, registrar os servicos:
+
+```csharp
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+using consulta.vulnerabilidade.Application.AgentFix.Handlers;
+using consulta.vulnerabilidade.Infrastructure.AgentFix.Agent;
+using consulta.vulnerabilidade.Infrastructure.AgentFix.GitHub;
+using consulta.vulnerabilidade.Infrastructure.AgentFix.Storage;
+
+builder.Services.AddSingleton<IFixJobRepository, InMemoryFixJobRepository>();
+builder.Services.AddScoped<IFixAgent, SimpleRuleBasedFixAgent>();
+builder.Services.AddScoped<IGitProvider, GitHubApiProvider>();
+
+builder.Services.AddScoped<RequestFixHandler>();
+builder.Services.AddScoped<ProcessFixJobHandler>();
+
+builder.Services.Configure<GitHubApiOptions>(
+    builder.Configuration.GetSection(GitHubApiOptions.SectionName));
+```
+
+Sem esse DI, a aplicacao nao compila/nao resolve handlers.
+
+==================================================
+7) appsettings.json (LEMBRETE)
+==================================================
+
+Adicionar:
+```json
+"GitHub": {
+  "BaseUrl": "https://api.github.com",
+  "Token": "",
+  "BotName": "agent-fix-bot",
+  "BotEmail": "agent-fix-bot@example.local"
+}
+```
+
+==================================================
+8) ENDPOINTS (MVP)
+==================================================
+
+POST /api/fix-jobs
+- Recebe scanId, findingId, repository, baseBranch
+- Chama RequestFixHandler
+- Inicia ProcessFixJobHandler (assinc.)
+- Retorna jobId
+
+GET /api/fix-jobs/{id}
+- Busca FixJob no repositorio
+- Retorna status, prUrl e errorMessage
+
+Modelo de request:
+```json
+{
+  "scanId": "scan-123",
+  "findingId": "finding-abc",
+  "repository": "owner/repo",
+  "baseBranch": "main"
+}
+```
+
+==================================================
+9) STEPS DE IMPLEMENTACAO (ORDEM PARA COMPILAR)
+==================================================
+
+1. Confirmar Domain/AgentFix (voce ja fez).
+2. Criar Application/AgentFix/Abstractions.
+3. Criar Application/AgentFix/Requests.
+4. Criar Application/AgentFix/Handlers.
+5. Criar Infrastructure/AgentFix/Storage (repo em memoria).
+6. Criar Infrastructure/AgentFix/Agent (RuleBased).
+7. Criar Infrastructure/AgentFix/GitHub (options + provider stub).
+8. Aplicar DI no Program.cs (obrigatorio para compilar).
+9. Adicionar secao GitHub no appsettings.json.
+10. Criar endpoints POST e GET.
+11. Compilar.
+12. Depois implementar GitHubApiProvider real.
+
+==================================================
+10) CRITERIOS DE ACEITE DO LAB
+==================================================
+
+- Usuario consegue solicitar correcao para um finding.
+- Sistema cria job e atualiza status.
+- Sistema abre PR em branch nova (quando provider real estiver implementado).
+- Merge permanece manual.
+- Nenhuma escrita direta em main/master.

@@ -1,0 +1,292 @@
+﻿FEATURE: CORRIGIR COM AGENT (LAB) - VERSAO OO
+
+Status atual
+- Voce ja criou as 3 classes de dominio (FixJobId, FixJobStatus, FixJob).
+- A partir daqui, a implementacao segue orientada a objetos (classes + interfaces + responsabilidades claras).
+
+Objetivo da feature
+- A partir de um finding persistido, permitir que o usuario clique em "Corrigir com Agent".
+- O sistema deve criar uma nova branch, aplicar alteracoes e abrir PR.
+- O merge sera sempre manual pelo usuario.
+
+Regra de ouro do MVP
+- Nunca escrever na branch principal.
+- Nunca fazer merge automatico.
+- Sempre criar branch nova + abrir PR.
+
+--------------------------------------------------
+1) Visao OO (quem faz o que)
+--------------------------------------------------
+
+A) Domain (estado e regras do negocio)
+- Classe: FixJob
+  Responsabilidade: representar ciclo de vida do pedido de correcao.
+- Enum: FixJobStatus
+  Responsabilidade: estados validos do job.
+- Value Object: FixJobId
+  Responsabilidade: identificacao forte do job.
+
+B) Application (orquestracao de caso de uso)
+- Classe: RequestFixHandler
+  Responsabilidade: receber comando de solicitacao e criar um FixJob.
+- Classe: ProcessFixJobHandler
+  Responsabilidade: executar o ciclo completo do job ate abrir PR ou falhar.
+- Interface: IFixJobRepository
+  Responsabilidade: persistencia/consulta de FixJob.
+- Interface: IFixAgent
+  Responsabilidade: transformar finding em plano de correcao (FixPlan).
+- Interface: IGitProvider
+  Responsabilidade: operacoes Git/GitHub (branch, commit, PR).
+- Interface: IFindingReader
+  Responsabilidade: carregar finding original para dar contexto ao agent.
+
+C) Infrastructure (implementacoes concretas)
+- Classe: InMemoryFixJobRepository (MVP)
+- Classe: ScanReportFindingReader
+- Classe: RuleBasedFixAgent (MVP sem LLM)
+- Classe: GitHubApiProvider (integracao real)
+
+D) Presentation/API
+- Endpoint POST /api/fix-jobs (cria job)
+- Endpoint GET /api/fix-jobs/{id} (consulta status)
+- Botao "Corrigir com Agent" na tela de historico
+
+--------------------------------------------------
+2) Estrutura de diretorios OO recomendada
+--------------------------------------------------
+
+consulta.vulnerabilidade/
+  Domain/
+    AgentFix/
+      FixJobId.cs
+      FixJobStatus.cs
+      FixJob.cs
+
+  Application/
+    AgentFix/
+      Contracts/
+        IFixJobRepository.cs
+        IFixAgent.cs
+        IGitProvider.cs
+        IFindingReader.cs
+      DTOs/
+        FixPlan.cs
+        FilePatch.cs
+        FindingContext.cs
+      Commands/
+        RequestFixCommand.cs
+        RequestFixResult.cs
+      Queries/
+        GetFixJobStatusQuery.cs
+        GetFixJobStatusResult.cs
+      Handlers/
+        RequestFixHandler.cs
+        ProcessFixJobHandler.cs
+        GetFixJobStatusHandler.cs
+
+  Infrastructure/
+    AgentFix/
+      Storage/
+        InMemoryFixJobRepository.cs
+      ReadModel/
+        ScanReportFindingReader.cs
+      Agent/
+        RuleBasedFixAgent.cs
+      GitHub/
+        GitHubApiOptions.cs
+        GitHubApiProvider.cs
+
+  Components/
+    Pages/
+      HistoricoContent.razor
+
+  docs/
+    agent-fix-lab-notas.txt
+
+--------------------------------------------------
+3) Classes e contratos (passo a passo)
+--------------------------------------------------
+
+PASSO 1 - Contracts (Application)
+
+1. IFixJobRepository
+- AddAsync(FixJob)
+- GetByIdAsync(FixJobId)
+- UpdateAsync(FixJob)
+
+2. IFindingReader
+- GetFindingAsync(scanId, findingId) => FindingContext
+
+3. IFixAgent
+- BuildPlanAsync(FixJob job, FindingContext finding) => FixPlan
+
+4. IGitProvider
+- CreateBranchAsync(repo, baseBranch, newBranch)
+- CommitFilesAsync(repo, branch, commitMessage, patches)
+- OpenPullRequestAsync(repo, baseBranch, headBranch, title, body)
+
+PASSO 2 - DTOs (Application)
+
+1. FindingContext
+- Dados minimos do finding para planejar correcao:
+  - ScanId
+  - FindingId
+  - VulnerabilityType
+  - Severity
+  - Evidence
+  - SuggestedFilePath (opcional)
+
+2. FixPlan
+- BranchName
+- CommitMessage
+- PullRequestTitle
+- PullRequestBody
+- IReadOnlyList<FilePatch>
+
+3. FilePatch
+- Path
+- NewContent
+
+PASSO 3 - Use cases (Handlers)
+
+1. RequestFixHandler
+- Entrada: RequestFixCommand
+- Cria FixJob em status Queued
+- Persiste no repositrio
+- Retorna JobId
+
+2. ProcessFixJobHandler
+Fluxo OO:
+- Carrega job por id
+- job.MarkRunning()
+- Carrega FindingContext via IFindingReader
+- Monta FixPlan via IFixAgent
+- Cria branch via IGitProvider
+- Commita patches via IGitProvider
+- Abre PR via IGitProvider
+- job.MarkPrOpened(prUrl)
+- Em erro: job.MarkFailed(error)
+
+3. GetFixJobStatusHandler
+- Consulta job e transforma em GetFixJobStatusResult
+
+PASSO 4 - Infra MVP
+
+1. InMemoryFixJobRepository
+- Dicionario em memoria para acelerar aprendizagem
+
+2. ScanReportFindingReader
+- Le do armazenamento atual de scans (ja existente no projeto)
+- Converte para FindingContext
+
+3. RuleBasedFixAgent
+- Sem IA no inicio
+- Regras deterministicas por tipo de finding
+- Exemplo:
+  - MissingSecurityHeader => adicionar header padrao
+  - InsecureCORS => restringir origem/metodos
+
+4. GitHubApiProvider
+- Implementa chamadas REST do GitHub
+- CreateBranch: refs/heads/<branch>
+- CommitFiles: create/update contents
+- OpenPullRequest: POST /pulls
+
+--------------------------------------------------
+4) Endpoints (simples e OO)
+--------------------------------------------------
+
+POST /api/fix-jobs
+- Body:
+{
+  "scanId": "scan-123",
+  "findingId": "finding-abc",
+  "repository": "owner/repo",
+  "baseBranch": "main"
+}
+- Acao:
+  - RequestFixHandler cria job
+  - Dispara processamento assncrono (fire-and-forget controlado no MVP)
+- Response:
+{
+  "jobId": "<id>",
+  "status": "Queued"
+}
+
+GET /api/fix-jobs/{id}
+- Acao:
+  - GetFixJobStatusHandler retorna estado atual
+- Response:
+{
+  "jobId": "<id>",
+  "status": "Running|PrOpened|Failed",
+  "prUrl": "https://github.com/owner/repo/pull/123",
+  "errorMessage": null
+}
+
+--------------------------------------------------
+5) DI (injecao de dependencia)
+--------------------------------------------------
+
+No Program.cs, registrar:
+- IFixJobRepository -> InMemoryFixJobRepository
+- IFindingReader -> ScanReportFindingReader
+- IFixAgent -> RuleBasedFixAgent
+- IGitProvider -> GitHubApiProvider
+- RequestFixHandler
+- ProcessFixJobHandler
+- GetFixJobStatusHandler
+
+Observacao de design
+- Cada classe deve ter uma unica responsabilidade.
+- Nada de "classe utilitaria gigante" para fazer tudo.
+
+--------------------------------------------------
+6) Guardrails obrigatorios
+--------------------------------------------------
+
+- Branch sempre no formato: agent/fix/<scanId>/<findingId>
+- Nao permitir baseBranch vazia (default: main)
+- Bloquear commit direto em main/master
+- PR sempre aberto para revisao humana
+- Nao executar merge automaticamente
+
+--------------------------------------------------
+7) Caminho pratico para voce continuar agora
+--------------------------------------------------
+
+Ja que voce concluiu Domain, implemente nesta ordem:
+1. Application/AgentFix/Contracts
+2. Application/AgentFix/DTOs
+3. Application/AgentFix/Handlers (RequestFixHandler primeiro)
+4. Infrastructure/AgentFix/Storage/InMemoryFixJobRepository
+5. Endpoint POST /api/fix-jobs
+6. Endpoint GET /api/fix-jobs/{id}
+7. ProcessFixJobHandler completo
+8. GitHubApiProvider (real)
+9. Botao "Corrigir com Agent" na UI
+
+--------------------------------------------------
+8) Issue pronta (versao OO)
+--------------------------------------------------
+
+Titulo
+feat(agent-fix): fluxo OO para criar branch + PR de correcao automatizada
+
+Descricao
+Implementar feature de laboratorio "Corrigir com Agent" com arquitetura OO em camadas (Domain/Application/Infrastructure). A partir de um finding, o sistema deve criar FixJob, processar correcoes via servicos especializados, abrir branch dedicada e criar Pull Request para aprovacao manual.
+
+Escopo
+- Modelagem de FixJob no dominio
+- Handlers de aplicacao (Request, Process, Status)
+- Contratos (Repository, FindingReader, FixAgent, GitProvider)
+- Implementacoes de infraestrutura
+- Endpoints POST/GET de fix-jobs
+- Integracao GitHub para branch/commit/PR
+
+Criterios de aceite
+- Branch nova obrigatoria no padrao agent/fix/<scanId>/<findingId>
+- PR criado com sucesso e URL persistida
+- Merge manual obrigatorio
+- Sem escrita direta na branch principal
+- Status do job consultavel por endpoint
