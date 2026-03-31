@@ -1,5 +1,12 @@
 ﻿using consulta.vulnerabilidade.Application.Abstractions;
+// agent
+using consulta.vulnerabilidade.Application.AgentFix.Abstractions;
+using consulta.vulnerabilidade.Application.AgentFix.Handlers;
+using consulta.vulnerabilidade.Application.AgentFix.Handles;
 using consulta.vulnerabilidade.Application.Scans;
+using consulta.vulnerabilidade.Infrastructure.AgentFix.Agent;
+using consulta.vulnerabilidade.Infrastructure.AgentFix.Github;
+using consulta.vulnerabilidade.Infrastructure.AgentFix.Storage;
 using consulta.vulnerabilidade.Infrastructure.AI;
 using consulta.vulnerabilidade.Infrastructure.Analyzers;
 using consulta.vulnerabilidade.Infrastructure.Bus;
@@ -37,6 +44,17 @@ builder.Services.AddScoped<IAiModel, NullAiModel>();
 
 // Handlers
 builder.Services.AddScoped<IEventHandler<consulta.vulnerabilidade.Domain.Scans.Events.ScanRequested>, ScanRequestedHandler>();
+
+// Agent
+builder.Services.AddSingleton<IFixJobRepository, InMemoryFixJobRepository>();
+builder.Services.AddScoped<IFixAgent, SimpleRuleBasedFixAgent>();
+builder.Services.AddScoped<IGitProvider, GitHubApiProvider>();
+
+builder.Services.AddScoped<RequestFixHandler>();
+builder.Services.AddScoped<ProcessFixJobHandler>();
+
+builder.Services.Configure<GitHubApiOptions>(
+builder.Configuration.GetSection(GitHubApiOptions.SectionName));
 
 var app = builder.Build();
 
