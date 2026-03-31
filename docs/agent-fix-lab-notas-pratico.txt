@@ -276,7 +276,7 @@ public sealed class ProcessFixJobHandler
 ```
 
 ==================================================
-5) INFRASTRUCTURE - STORAGE, AGENT E GITHUB	- PENDENTE
+5) INFRASTRUCTURE - STORAGE, AGENT E GITHUB	- OK
 ==================================================
 
 Arquivo: Infrastructure/AgentFix/Storage/InMemoryFixJobRepository.cs
@@ -386,7 +386,7 @@ public sealed class GitHubApiProvider : IGitProvider
 ```
 
 ==================================================
-6) DI (LEMBRETE OBRIGATORIO)
+6) DI (LEMBRETE OBRIGATORIO)			-  OK
 ==================================================
 
 No Program.cs, registrar os servicos:
@@ -412,7 +412,7 @@ builder.Services.Configure<GitHubApiOptions>(
 Sem esse DI, a aplicacao nao compila/nao resolve handlers.
 
 ==================================================
-7) appsettings.json (LEMBRETE)
+7) appsettings.json (LEMBRETE)			- OK
 ==================================================
 
 Adicionar:
@@ -426,7 +426,7 @@ Adicionar:
 ```
 
 ==================================================
-8) ENDPOINTS (MVP)
+8) ENDPOINTS (MVP)				- OK
 ==================================================
 
 POST /api/fix-jobs
@@ -450,7 +450,7 @@ Modelo de request:
 ```
 
 ==================================================
-9) STEPS DE IMPLEMENTACAO (ORDEM PARA COMPILAR)
+9) STEPS DE IMPLEMENTACAO (ORDEM PARA COMPILAR)	- OK
 ==================================================
 
 1. Confirmar Domain/AgentFix (voce ja fez).
@@ -467,7 +467,7 @@ Modelo de request:
 12. Depois implementar GitHubApiProvider real.
 
 ==================================================
-10) CRITERIOS DE ACEITE DO LAB
+10) CRITERIOS DE ACEITE DO LAB			- 
 ==================================================
 
 - Usuario consegue solicitar correcao para um finding.
