@@ -14,6 +14,9 @@
         public DateTimeOffset? FinishedAt { get; private set; }
 
         public void MarkRunning() => Status = FixJobStatus.Running;
+
+        public void MarkPendingApproval() => Status = FixJobStatus.PendingApproval;
+
         public void MarkPrOpened(string prUrl)
         {
             Status = FixJobStatus.PrOpened;

@@ -1,12 +1,8 @@
 ﻿<div class="navmenu-shell @(IsCollapsed ? "collapsed" : string.Empty)">
-    <div class="top-row mb-3 ps-3 navbar navbar-dark" style="background-color:#162033 !important; background-image:none !important;">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="" style="@GetBrandStyle()"><h2>Fast Scan</h2></a>
-        </div>
-    </div>
-
     <div class="nav-scrollable" style="background-color:#162033 !important; background-image:none !important;">
-        <nav class="flex-column">
+        <nav class="flex-column nav-links">
+            <div class="nav-top-spacer" aria-hidden="true"></div>
+
             <div class="nav-item px-3" style="@GetItemContainerStyle()">
                 <NavLink class="nav-link" href="" Match="NavLinkMatch.All" style="@GetLinkStyle()">
                     <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true" style="@GetIconStyle()"></span>
@@ -21,6 +17,12 @@
                 </NavLink>
             </div>
         </nav>
+
+        <div class="nav-footer-brand navbar navbar-dark " style="background-color:#162033 !important; background-image:none !important;">
+            <div class="container-fluid">
+                <a class="navbar-brand ms-5" href="" style="@GetBrandStyle()"><h2>Fast Scan</h2></a>
+            </div>
+        </div>
     </div>
 </div>
 

@@ -16,6 +16,8 @@ namespace consulta.vulnerabilidade.Application.AgentFix.Handlers
         public async Task<RequestFixResult> HandleAsync(RequestFixCommand cmd, CancellationToken ct = default)
         {
             var baseBranch = string.IsNullOrWhiteSpace(cmd.BaseBranch) ? "main" : cmd.BaseBranch;
+            var severity = (cmd.Severity ?? string.Empty).Trim().ToLowerInvariant();
+            var requiresApproval = severity is "high" or "critical";
 
             var job = new FixJob
             {
@@ -26,8 +28,13 @@ namespace consulta.vulnerabilidade.Application.AgentFix.Handlers
                 BaseBranch = baseBranch
             };
 
+            if (requiresApproval)
+            {
+                job.MarkPendingApproval();
+            }
+
             await _repo.AddAsync(job, ct);
-            return new RequestFixResult(job.Id.ToString(), FixJobStatus.Queued.ToString());
+            return new RequestFixResult(job.Id.ToString(), job.Status.ToString());
         }
     }
 }
