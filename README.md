@@ -67,7 +67,8 @@ dotnet run
 
 ## Template base
 
-<img width="1777" height="863" alt="image" src="https://github.com/user-attachments/assets/a3c49a65-77da-4ed1-9afb-4f749465b343" />
+<img width="1777" height="863" alt="image" src="https://github.com/user-attachments/assets/edca327c-c850-4d41-baf8-e0b986b40b55" />
+
 
 
 <img width="1920" height="922" alt="image" src="https://github.com/user-attachments/assets/6e4951f9-e77c-4b6d-9059-80862fabdcf1" />
