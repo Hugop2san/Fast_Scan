@@ -112,8 +112,7 @@ public sealed class ScanRequestedHandler : IEventHandler<ScanRequested>
         if (surface.StatusCode is (int)HttpStatusCode.Unauthorized
             or (int)HttpStatusCode.Forbidden
             or (int)HttpStatusCode.ProxyAuthenticationRequired
-            or (int)HttpStatusCode.TooManyRequests
-            or (int)HttpStatusCode.ServiceUnavailable)
+            or (int)HttpStatusCode.TooManyRequests)
         {
             return true;
         }
@@ -123,12 +122,11 @@ public sealed class ScanRequestedHandler : IEventHandler<ScanRequested>
 
         var html = surface.Html;
         return html.Contains("access denied", StringComparison.OrdinalIgnoreCase)
-            || html.Contains("denied", StringComparison.OrdinalIgnoreCase)
-            || html.Contains("forbidden", StringComparison.OrdinalIgnoreCase)
             || html.Contains("captcha", StringComparison.OrdinalIgnoreCase)
-            || html.Contains("login", StringComparison.OrdinalIgnoreCase)
-            || html.Contains("senha", StringComparison.OrdinalIgnoreCase)
-            || html.Contains("cloudflare", StringComparison.OrdinalIgnoreCase)
-            || html.Contains("bot", StringComparison.OrdinalIgnoreCase);
+            || html.Contains("cf-chl-", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("cloudflare challenge", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("checking your browser", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("enable javascript and cookies", StringComparison.OrdinalIgnoreCase)
+            || html.Contains("please verify you are human", StringComparison.OrdinalIgnoreCase);
     }
 }
